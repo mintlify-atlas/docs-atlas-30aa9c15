@@ -1,0 +1,71 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "FZX2 (507ex 2.0)",
+  "projectDescription": "A Python CLI tool for building, executing, uploading, and managing 507ex portable executables, with an optional Central Application Repository (CAR) server for remote distribution.",
+  "theme": "palm",
+  "primaryColor": "#ef7025",
+  "lightColor": "#eec9bc",
+  "darkColor": "#4fa1ab",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "CLI Reference",
+            "pages": [
+              "cli/build",
+              "cli/exec",
+              "cli/upload",
+              "cli/unpack",
+              "cli/start-server"
+            ]
+          },
+          {
+            "group": "Executable Format",
+            "pages": [
+              "format/overview",
+              "format/runfile",
+              "format/dependfile"
+            ]
+          },
+          {
+            "group": "CAR Server",
+            "pages": [
+              "car/overview",
+              "car/running-the-server",
+              "car/api-reference"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Build portable .507ex executables from directories",
+    "Execute local or remote .507ex files with hash verification",
+    "Auto dependency management via embedded dependfile",
+    "Enhanced metadata (hash, UUID, creation timestamp)",
+    "Upload executables to CAR server for remote distribution",
+    "CAR server with secret-code authentication for secure pulls",
+    "Unpack .507ex files to inspect their contents",
+    "Install via pip as the fzx2 command"
+  ],
+  "publicApiSurface": [
+    "fzx2 build <directory>",
+    "fzx2 exec <path|url>",
+    "fzx2 upload <path>",
+    "fzx2 unpack <path>",
+    "fzx2 start_server",
+    "POST /push — upload an executable to CAR",
+    "POST /pull/<file_id> — download an executable from CAR"
+  ]
+}

@@ -1,0 +1,115 @@
+---
+title: "507ex File Format Overview"
+description: "A technical reference for the .507ex binary format: its metadata header, BLAKE2s hash, UUID, dependency section, and ZIP payload structure."
+---
+
+A `.507ex` file is a ZIP archive of your source directory with a plain-text metadata header prepended to the front. When you run `fzx2 build`, the tool zips your source directory, computes a BLAKE2s hash of that ZIP, assigns a UUID, records the creation timestamp, and writes all of that into a structured header before the raw ZIP bytes. At execution time, FZX2 reads the header to verify integrity, load metadata, and decide whether to install dependencies — then extracts and runs the ZIP payload.
+
+## File structure
+
+A `.507ex` file is read line by line from the top. The header is entirely ASCII text and ends with a sentinel line; everything after that sentinel is binary ZIP data.
+
+```text
+FZX2
+!507EX-METADATA
+507ex-hash|<blake2s_hex_digest>
+507ex-hashmode|blake2s
+507ex-id|<uuid4>
+507ex-dtoc|<datetime>
+507ex-depends|True
+!507EX-DEPENDENCIES
+!PIP|python3 -m pip install
+!PLATFORM *
+together
+!507EX-END-META
+<raw ZIP bytes>
+```
+
+The first line `FZX2` is the magic identifier. If the execute command reads any other value on that line, it immediately raises a `ValueError` and aborts.
+
+## Metadata fields
+
+Each metadata field occupies its own line, using a `|` delimiter between the field name and value.
+
+| Field | Example value | Purpose |
+|---|---|---|
+| `507ex-hash` | `a3f9...c2d1` | BLAKE2s hex digest of the raw ZIP bytes, verified before execution |
+| `507ex-hashmode` | `blake2s` | Hash algorithm used; recorded so future versions can support others |
+| `507ex-id` | `f47ac10b-...` | UUID v4 assigned at build time; used as the runtime extraction directory name |
+| `507ex-dtoc` | `2025-05-16 10:22:01.123456` | Date and time of creation, recorded for informational purposes |
+| `507ex-depends` | `True` or `False` | Whether a `dependfile` was present at build time; controls dependency installation at runtime |
+
+<Note>
+The hash is computed over the raw ZIP bytes **before** the metadata header is prepended. FZX2 re-reads the ZIP payload from after `!507EX-END-META` at execution time and recomputes the hash to verify the file has not been modified.
+</Note>
+
+## Section markers
+
+Three sentinel lines delimit the sections of the header.
+
+| Marker | Role |
+|---|---|
+| `!507EX-METADATA` | Opens the metadata key-value section |
+| `!507EX-DEPENDENCIES` | Opens the dependency block; content is the raw `dependfile` |
+| `!507EX-END-META` | Closes the header; all bytes after this line are ZIP data |
+
+## How the hash is computed
+
+The BLAKE2s digest is calculated over the ZIP file before any header is written. The build function reads the archive in 8 192-byte chunks to keep memory usage constant regardless of archive size:
+
+```python
+hashfunc = hashlib.new('blake2s')
+with open(f"{directory}.507ex", 'rb') as f:
+    while chunk := f.read(8192):
+        hashfunc.update(chunk)
+    exec_hash = hashfunc.hexdigest()
+```
+
+The resulting hex string is stored verbatim in the `507ex-hash` field. At runtime, FZX2 extracts the ZIP payload from after `!507EX-END-META`, hashes it with the same algorithm, and compares the result to the stored value.
+
+## Annotated example
+
+The following shows a complete header for a project with one pip dependency:
+
+```text
+FZX2                                         ← magic identifier
+!507EX-METADATA                              ← start of metadata section
+507ex-hash|9f86d081884c7d659a2feaa0...       ← BLAKE2s hex digest of ZIP
+507ex-hashmode|blake2s                       ← hash algorithm
+507ex-id|550e8400-e29b-41d4-a716-...        ← UUID v4
+507ex-dtoc|2025-05-16 10:22:01.482903       ← build timestamp
+507ex-depends|True                           ← dependfile was present
+!507EX-DEPENDENCIES                          ← start of dependency block
+!PIP|python3 -m pip install                  ← install command prefix
+!PLATFORM *                                  ← applies to all platforms
+together                                     ← dependency name
+!507EX-END-META                              ← end of header
+<ZIP binary data begins here>
+```
+
+<Tip>
+Because the header is plain ASCII text, you can inspect any `.507ex` file with a text viewer up to the `!507EX-END-META` line to read its metadata without any special tooling.
+</Tip>
+
+## Build and execute lifecycle
+
+<Steps>
+  <Step title="Build: zip the source directory">
+    `fzx2 build <directory>` creates a ZIP archive of the directory. The `.zip` extension is renamed to `.507ex` before metadata is written.
+  </Step>
+  <Step title="Build: compute the BLAKE2s hash">
+    The ZIP bytes are hashed with BLAKE2s in 8 192-byte chunks and the hex digest is stored.
+  </Step>
+  <Step title="Build: write the header and payload">
+    The header (magic line, metadata fields, dependency block) is written to a new file, followed immediately by the raw ZIP bytes.
+  </Step>
+  <Step title="Execute: verify the magic line">
+    FZX2 reads the first line. If it is not `FZX2`, execution aborts with `ValueError: Invalid Executable!`.
+  </Step>
+  <Step title="Execute: parse metadata and install dependencies">
+    FZX2 reads each metadata field and, if `507ex-depends` is `True`, processes the dependency block. The user is prompted to confirm installation before any commands run.
+  </Step>
+  <Step title="Execute: extract and run">
+    The ZIP payload is extracted to `.fzx2-runtime/<exec_id>/` and the command from `runfile` is executed in that directory.
+  </Step>
+</Steps>

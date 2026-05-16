@@ -1,0 +1,112 @@
+---
+title: "Installing FZX2 on Your System"
+description: "Install the FZX2 CLI via pip, a precompiled binary, or directly from source. Requires Python 3.10 or later on any supported platform."
+---
+
+FZX2 is distributed as a Python package and requires Python 3.10 or later. The preferred installation method is pip, which handles all runtime dependencies automatically. If you need to run FZX2 without a Python environment, precompiled binaries are available for common platforms. Source installs are an option if you want to inspect or modify the toolchain before using it.
+
+## Requirements
+
+- Python >= 3.10
+- `requests` >= 2.33.0
+- `flask` ~= 3.1.2
+
+These dependencies are installed automatically when you use pip. For source or binary installs, see the notes below.
+
+---
+
+## Method 1 — pip (preferred)
+
+Install FZX2 from PyPI with a single command:
+
+```bash
+pip install fzx2
+```
+
+After installation, the `fzx2` command is available directly from your shell:
+
+```bash
+fzx2 --help
+```
+
+If your environment does not add pip scripts to your `PATH`, you can invoke FZX2 as a module instead:
+
+```bash
+python3 -m fzx2 --help
+```
+
+<Tip>Using a virtual environment (`python3 -m venv .venv && source .venv/bin/activate`) before installing keeps FZX2 and its dependencies isolated from your system Python.</Tip>
+
+---
+
+## Method 2 — Compiled executable
+
+Precompiled binaries that do not require a Python installation are available on the [releases page](https://github.com/WyattBrashear/507ex-utils2/releases). Download the binary for your platform, make it executable, and move it somewhere on your `PATH`:
+
+```bash
+chmod +x fzx2
+mv fzx2 /usr/local/bin/fzx2
+```
+
+Verify it works:
+
+```bash
+fzx2 --help
+```
+
+<Note>Precompiled binaries bundle a Python interpreter and all dependencies. They are larger than a pip install but require no Python setup on the target machine.</Note>
+
+---
+
+## Method 3 — From source
+
+Install from the source repository if you want to read or modify the code before running it.
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/WyattBrashear/507ex-utils2.git
+    cd 507ex-utils2
+    ```
+  </Step>
+  <Step title="Install dependencies">
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+    The required packages are `requests>=2.33.0` and `flask~=3.1.2`. If there is no `requirements.txt`, install them directly:
+
+    ```bash
+    pip install "requests>=2.33.0" "flask~=3.1.2"
+    ```
+  </Step>
+  <Step title="Run FZX2 from source">
+    ```bash
+    python3 fzx2.py --help
+    ```
+
+    All commands work the same way — replace `fzx2` with `python3 fzx2.py` in any command shown in these docs.
+  </Step>
+</Steps>
+
+---
+
+## Verify your installation
+
+Whichever method you used, confirm FZX2 is working correctly:
+
+<CodeGroup>
+
+```bash pip install
+fzx2 --help
+```
+
+```bash source install
+python3 fzx2.py --help
+```
+
+</CodeGroup>
+
+You should see output listing the available modes: `build`, `upload`, `exec`, `unpack`, and `start_server`.
+
+<Warning>If you see a "command not found" error after a pip install, your Python scripts directory is not on your `PATH`. Either use `python3 -m fzx2` or add the scripts directory to your `PATH`. On most Linux and macOS systems this is `~/.local/bin`.</Warning>

@@ -1,0 +1,64 @@
+---
+title: 'fzx2 unpack — Inspect the contents of a .507ex file'
+description: 'Extract the ZIP payload of a .507ex executable into a local directory for inspection, without executing any code or verifying the hash.'
+---
+
+The `unpack` command extracts the contents of a `.507ex` file into a directory under `507ex-unpacked/` in your current working directory. It is designed for inspecting what a package contains — reading the `runfile`, reviewing bundled scripts, or auditing a `.507ex` file before execution — without running any code.
+
+## Usage
+
+```bash
+fzx2 unpack <path>
+```
+
+<ParamField path="path" type="string" required>
+  Path to the `.507ex` file to unpack. This value is used both as the source file passed to `zipfile.ZipFile` and as the name of the subdirectory created inside `507ex-unpacked/`. See the note below on path and directory naming.
+</ParamField>
+
+## How it works
+
+<Steps>
+  <Step title="Create the output root">
+    If `507ex-unpacked/` does not already exist in the current working directory, it is created.
+  </Step>
+  <Step title="Create a subdirectory named after the path argument">
+    A subdirectory named exactly after the `<path>` argument is created inside `507ex-unpacked/`. For example, `fzx2 unpack my_app.507ex` creates `507ex-unpacked/my_app.507ex/`.
+  </Step>
+  <Step title="Extract the ZIP payload">
+    The `.507ex` file (which is a valid ZIP archive, optionally with the FZX2 metadata header prepended) is opened with `zipfile.ZipFile` and all its contents are extracted into the subdirectory.
+  </Step>
+</Steps>
+
+## Example
+
+```bash
+fzx2 unpack my_app.507ex
+```
+
+After running this command from `/home/user/projects/`:
+
+```text
+507ex-unpacked/
+└── my_app.507ex/
+    ├── runfile
+    ├── dependfile
+    └── main.py
+```
+
+You can then read the `runfile` to see what command the executable would run:
+
+```bash
+cat 507ex-unpacked/my_app.507ex/runfile
+```
+
+## Naming behavior
+
+The `<path>` argument is used verbatim as the subdirectory name inside `507ex-unpacked/`. Passing a bare filename like `my_app.507ex` creates `507ex-unpacked/my_app.507ex/`. Passing a path with directory components (e.g., `builds/my_app.507ex`) would attempt to create `507ex-unpacked/builds/my_app.507ex/` — ensure the intermediate directory exists first, or pass only the filename.
+
+<Note>
+  `unpack` does not verify the BLAKE2s hash or parse the FZX2 metadata header. It simply opens the file as a ZIP archive. If you want hash verification, use `fzx2 exec` instead.
+</Note>
+
+<Tip>
+  Use `unpack` to review a `.507ex` file's `runfile` and bundled scripts before trusting it enough to execute with `fzx2 exec`.
+</Tip>

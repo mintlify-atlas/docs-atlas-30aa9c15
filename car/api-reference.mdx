@@ -1,0 +1,147 @@
+---
+title: 'CAR server API: POST /push and POST /pull endpoints'
+description: 'Reference for the FZX2 CAR server HTTP API: POST /push to upload a .507ex file and POST /pull/{file_id} to download it with a secret code.'
+---
+
+The CAR server exposes two HTTP endpoints. `POST /push` accepts a `.507ex` upload and returns a pull URL with a secret code. `POST /pull/<file_id>` authenticates a download request and streams the binary back to the caller. The FZX2 CLI handles both automatically, but you can also call the endpoints directly with any HTTP client.
+
+---
+
+## POST /push
+
+Upload a `.507ex` executable to the server. The server stores the file under the provided `file_id`, generates a 6-digit secret code, persists its SHA-256 hash, and returns the raw code along with the pull URL.
+
+**Content-Type:** `multipart/form-data`
+
+### Request fields
+
+<ParamField body="file_id" type="string" required>
+  The UUID identifier for the file. This value must match the `507ex-id` embedded in the executable's header. The FZX2 CLI extracts this automatically before uploading.
+</ParamField>
+
+<ParamField body="file" type="file" required>
+  The `.507ex` binary data to store on the server.
+</ParamField>
+
+### Response fields
+
+<ResponseField name="status" type="string" required>
+  Always `"success"` on a successful upload.
+</ResponseField>
+
+<ResponseField name="secret_code" type="string" required>
+  A 6-digit numeric code returned as a string (e.g., `"482910"`). This is the raw code — the server stores only its SHA-256 hash. Save this value immediately; it cannot be retrieved again.
+</ResponseField>
+
+<ResponseField name="url" type="string" required>
+  The full URL to use when pulling the file, in the form `http://<server>/pull/<file_id>`.
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+
+```bash curl
+curl --request POST \
+  --url http://127.0.0.1:5000/push \
+  --form "file_id=a1b2c3d4-e5f6-7890-abcd-ef1234567890" \
+  --form "file=@my_app.507ex"
+```
+
+```python Python
+import requests
+
+with open("my_app.507ex", "rb") as f:
+    response = requests.post(
+        "http://127.0.0.1:5000/push",
+        files={"file": f},
+        data={"file_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"},
+    )
+
+data = response.json()
+print(data["url"])
+print(data["secret_code"])
+```
+
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "secret_code": "482910",
+  "url": "http://127.0.0.1:5000/pull/a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+}
+```
+
+---
+
+## POST /pull/\{file_id\}
+
+Download a `.507ex` executable from the server. The caller must provide the SHA-256 hash of the secret code. The server compares the submitted hash against the stored hash and serves the file only if they match.
+
+**Content-Type:** `application/x-www-form-urlencoded`
+
+### Path parameters
+
+<ParamField path="file_id" type="string" required>
+  The UUID of the executable to download. This is the same value used when uploading with `/push`.
+</ParamField>
+
+### Request fields
+
+<ParamField body="secret_code" type="string" required>
+  The SHA-256 hex digest of the numeric secret code. The FZX2 CLI hashes the user-supplied code automatically before sending this request. If you are calling the endpoint directly, hash the raw 6-digit code yourself before submitting.
+</ParamField>
+
+### Responses
+
+| Status | Body | Meaning |
+|--------|------|---------|
+| `200 OK` | `.507ex` binary (attachment) | Authentication succeeded; the file is returned as a download. |
+| `401 Unauthorized` | `Invalid secret code` | The submitted hash does not match the stored hash. |
+| `404 Not Found` | `File not found` | No file with the given `file_id` exists on the server. |
+
+<Note>
+The FZX2 CLI hashes the secret code with SHA-256 before sending it. If you call `/pull` directly (e.g., with curl), you must hash the code yourself. The raw numeric code will always produce a `401` response.
+</Note>
+
+### Example
+
+<CodeGroup>
+
+```bash curl
+# Hash the secret code first, then submit the hash
+SECRET_HASH=$(echo -n "482910" | sha256sum | awk '{print $1}')
+
+curl --request POST \
+  --url http://127.0.0.1:5000/pull/a1b2c3d4-e5f6-7890-abcd-ef1234567890 \
+  --data "secret_code=${SECRET_HASH}" \
+  --output my_app.507ex
+```
+
+```python Python
+import hashlib
+import requests
+
+raw_code = "482910"
+hashed = hashlib.sha256(raw_code.encode()).hexdigest()
+
+response = requests.post(
+    "http://127.0.0.1:5000/pull/a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    data={"secret_code": hashed},
+)
+
+if response.status_code == 200:
+    with open("my_app.507ex", "wb") as f:
+        f.write(response.content)
+elif response.status_code == 401:
+    print("Invalid secret code")
+elif response.status_code == 404:
+    print("File not found")
+```
+
+</CodeGroup>
+
+On success, the response body is the raw `.507ex` binary served as a file attachment. On failure, the body is a plain-text error message.

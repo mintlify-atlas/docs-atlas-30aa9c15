@@ -1,0 +1,69 @@
+---
+title: 'CAR: Central Application Repository'
+description: 'The FZX2 CAR server hosts .507ex executables over HTTP with secret-code authentication, letting recipients exec files directly from a URL.'
+---
+
+The Central Application Repository (CAR) is a lightweight Flask-based server that lets you host compiled 507ex executables and share them with others over HTTP. Instead of passing files around manually, you upload a `.507ex` binary to a running CAR server, receive a pull URL and a one-time secret code, then share those with anyone who needs to run your application — they execute it directly from the URL without ever handling the file themselves.
+
+## How CAR works
+
+Each `.507ex` executable contains an embedded `507ex-id` UUID in its header. When you upload a file, the server uses this UUID as the file identifier and stores the binary at `storage/<file_id>.507ex`. It then generates a random 6-digit secret code (between 100000 and 999999), stores the SHA-256 hash of that code alongside the file, and returns the raw code to you exactly once. Anyone who wants to download and run the file must provide that same raw code — the server re-hashes the input and compares it against the stored hash before serving the file.
+
+## The workflow
+
+<Steps>
+  <Step title="Build your executable">
+    Compile your project into a `.507ex` file using the FZX2 toolchain. Make sure the file contains a valid `507ex-id` header line, which the CLI uses to identify the upload.
+  </Step>
+  <Step title="Start a CAR server">
+    Run the CAR server on a host that is reachable by everyone who needs the file. See [Running the server](/car/running-the-server) for setup instructions.
+  </Step>
+  <Step title="Upload the executable">
+    Run `fzx2 upload my_app.507ex`. The CLI prompts you for the server address, reads the embedded file ID, and posts the binary to `/push`. You receive a pull URL and a secret code.
+
+    ```text
+    Upload Complete!
+    Upload URL: http://192.0.2.10:5000/pull/a1b2c3d4
+    Your Secret Code Is: 482910
+    ```
+  </Step>
+  <Step title="Share the URL and secret code">
+    Send the pull URL and the secret code to whoever needs to run the application. Keep the secret code private — it is the only credential that gates access to the file.
+  </Step>
+  <Step title="Recipients execute via URL">
+    The recipient runs `fzx2 exec http://192.0.2.10:5000/pull/<file_id>`. The CLI prompts for the secret code, hashes it, sends it to `/pull/<file_id>`, downloads the file on success, executes it, and then deletes the temporary copy.
+  </Step>
+</Steps>
+
+## Authentication model
+
+<Note>
+The secret code is shown to you only once, at upload time. There is no way to recover it from the server. Store it somewhere safe before sharing.
+</Note>
+
+The server never stores the raw secret code. It stores only the SHA-256 hash. When the recipient submits the code, the FZX2 CLI hashes the input before sending it in the POST body, and the server compares the submitted hash to the stored one. A mismatch returns a `401 Unauthorized` response and the file is not served.
+
+## Pull URL format
+
+Every uploaded file is accessible at a predictable URL based on its embedded UUID:
+
+```text
+http://<server_host>:<port>/pull/<file_id>
+```
+
+For example:
+
+```text
+http://192.0.2.10:5000/pull/a1b2c3d4-e5f6-7890-abcd-ef1234567890
+```
+
+## Learn more
+
+<CardGroup cols={2}>
+  <Card title="Running the server" icon="server" href="/car/running-the-server">
+    How to start the CAR server with fzx2 or directly with Python, plus the full upload-and-share workflow.
+  </Card>
+  <Card title="API reference" icon="code" href="/car/api-reference">
+    Full reference for the /push and /pull endpoints, including request fields, response fields, and curl examples.
+  </Card>
+</CardGroup>

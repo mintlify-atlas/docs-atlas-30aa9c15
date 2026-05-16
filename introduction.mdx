@@ -1,0 +1,60 @@
+---
+title: "What is FZX2 (507ex 2.0)?"
+description: "Learn what the 507ex 2.0 format is, how FZX2 works, and the key concepts: executables, runfiles, dependfiles, and the CAR distribution server."
+---
+
+FZX2 is a command-line tool for packaging Python projects into portable `.507ex` executables that carry their own metadata, dependency declarations, and integrity hashes. When you run `fzx2 build`, it zips your project directory, prepends a structured metadata header, and produces a single file you can share, store, or push to a CAR (Central Application Repository) server. Anyone with `fzx2` installed can then run that file directly — locally or by pulling it from a CAR URL — without needing to know what packages it requires or how to set up the environment.
+
+## 507ex 2.0 vs the original format
+
+The original 507ex format was a thin wrapper around a zip archive with no standardized metadata. Version 2.0 (produced by FZX2) replaces that with a well-defined binary header that travels with every executable:
+
+| Field | Description |
+|---|---|
+| `507ex-hash` | BLAKE2s content hash for integrity verification |
+| `507ex-hashmode` | Hash algorithm used (always `blake2s` in 2.0) |
+| `507ex-id` | Randomly assigned UUID per build |
+| `507ex-dtoc` | Timestamp of when the executable was built |
+| `507ex-depends` | Boolean indicating whether a `dependfile` is present |
+
+These fields let `fzx2 exec` verify the file hasn't been tampered with before running it, and let tooling inspect executables without executing them.
+
+## Key improvements in 2.0
+
+- **No AI-generated code.** The entire FZX2 toolchain is hand-written, giving you a predictable and auditable build process.
+- **Enhanced metadata.** Every `.507ex` file embeds a content hash, build timestamp, UUID, and dependency flag in its header — making executables self-describing.
+- **Automatic dependency management.** The `dependfile` format lets you declare pip packages and platform constraints. FZX2 reads and installs them at execution time, so the receiver doesn't need to manage a virtual environment manually.
+- **CAR server authentication.** The built-in push/pull server generates a one-time numeric secret code on upload. The receiver must present the correct code (as a SHA-256 hash) to download the file, preventing unauthorized retrieval.
+
+## Key concepts
+
+**Executable (`.507ex` file):** The output of `fzx2 build`. A binary file containing a metadata header followed by the original zip of your project directory.
+
+**Runfile:** A plain-text file in your project root that contains the shell command used to run your project (e.g., `python3 main.py`). This is required — `fzx2 build` will refuse to proceed without it.
+
+**Dependfile:** An optional plain-text file that declares pip packages your project needs, along with an optional platform constraint. FZX2 reads this at execution time and installs any missing packages before running the executable.
+
+**CAR server:** A lightweight Flask server bundled with FZX2 (`fzx2 start_server`). It exposes a `/push` endpoint for uploading executables and a `/pull/<file_id>` endpoint for authenticated download. Use `fzx2 upload` to push a `.507ex` file, then share the returned URL and secret code with your recipient.
+
+## Explore the docs
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install FZX2 via pip, compiled binary, or from source.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Build and run your first 507ex executable end to end.
+  </Card>
+  <Card title="CLI reference" icon="terminal" href="/cli/build">
+    Full reference for all FZX2 commands and options.
+  </Card>
+  <Card title="Format overview" icon="file-code" href="/format/overview">
+    Understand the 507ex 2.0 binary format and header structure.
+  </Card>
+  <Card title="Runfile" icon="play" href="/format/runfile">
+    How to write a runfile that tells FZX2 how to start your project.
+  </Card>
+  <Card title="CAR server" icon="server" href="/car/overview">
+    Host and share executables with the built-in CAR server.
+  </Card>
+</CardGroup>

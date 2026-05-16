@@ -1,0 +1,127 @@
+---
+title: 'fzx2 start_server — Run a local CAR distribution server'
+description: 'Start a local Flask CAR server that accepts .507ex uploads via POST /push and authenticates downloads via POST /pull for remote fzx2 exec.'
+---
+
+The `start_server` command launches a Flask web server that acts as a CAR (Central Application Repository) host for `.507ex` files. Once running, other machines can upload executables to it with `fzx2 upload` and download and run them with `fzx2 exec <url>`. The server stores uploaded files in a `storage/` directory in the current working directory and generates a secret code for each upload that must be presented at download time.
+
+## Usage
+
+```bash
+fzx2 start_server .
+```
+
+<Note>
+  The CLI requires a `path` argument for all modes, but `start_server` does not use it. Pass any value (e.g., `.`) as a placeholder — it is ignored.
+</Note>
+
+## How it works
+
+<Steps>
+  <Step title="Create the storage directory">
+    If a `storage/` directory does not already exist in the current working directory, it is created. All uploaded `.507ex` files are stored here.
+  </Step>
+  <Step title="Start the Flask server">
+    Flask's built-in development server starts on `127.0.0.1:5000` (the Flask default). The server exposes two endpoints: `POST /push` and `POST /pull/<file_id>`.
+  </Step>
+</Steps>
+
+## Server endpoints
+
+### POST /push
+
+Accepts a `.507ex` file upload and stores it in `storage/`. Returns a JSON response with a download URL and a randomly generated secret code.
+
+**Form fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `file` | file | The `.507ex` file to store. |
+| `file_id` | string | The `exec_id` UUID read from the file's metadata header by `fzx2 upload`. |
+
+**Response:**
+
+```json
+{
+  "url": "http://<host>:5000/pull/<file_id>",
+  "secret_code": "<code>"
+}
+```
+
+### POST /pull/\<file_id\>
+
+Serves the stored `.507ex` file for the given `file_id`. Requires the secret code that was issued at upload time.
+
+**Form fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `secret_code` | string | The SHA-256 hash of the secret code printed by `fzx2 upload`. |
+
+Returns `HTTP 401` if the secret code does not match.
+
+## Example workflow
+
+<Steps>
+  <Step title="Start the server">
+    ```bash
+    fzx2 start_server .
+    ```
+
+    ```text
+     * Running on http://127.0.0.1:5000
+    ```
+  </Step>
+  <Step title="Upload an executable">
+    From another terminal or machine:
+
+    ```bash
+    fzx2 upload my_app.507ex
+    ```
+
+    ```text
+    Please enter the server address:
+    http://127.0.0.1:5000
+    Upload Complete!
+    Upload URL: http://127.0.0.1:5000/pull/a1b2c3d4-e5f6-7890-abcd-ef1234567890
+    Your Secret Code Is: 482910
+    ```
+  </Step>
+  <Step title="Execute the uploaded file remotely">
+    ```bash
+    fzx2 exec http://127.0.0.1:5000/pull/a1b2c3d4-e5f6-7890-abcd-ef1234567890
+    ```
+
+    ```text
+    Please enter the secret code:
+    482910
+    Hello from my_app!
+    ```
+  </Step>
+</Steps>
+
+## Storage layout
+
+After one or more uploads, the working directory looks like:
+
+```text
+storage/
+├── a1b2c3d4-e5f6-7890-abcd-ef1234567890.507ex
+├── a1b2c3d4-e5f6-7890-abcd-ef1234567890.json
+├── b9c8d7e6-f5a4-3210-fedc-ba9876543210.507ex
+└── b9c8d7e6-f5a4-3210-fedc-ba9876543210.json
+```
+
+Each `.507ex` file is paired with a `.json` file containing the SHA-256 hash of its secret code.
+
+<Warning>
+  Flask's built-in server is intended for development only. It is single-threaded and not hardened against malicious input. Do not expose it on a public network or use it in production without a proper WSGI server such as Gunicorn or uWSGI behind a reverse proxy.
+</Warning>
+
+<Tip>
+  To make the server reachable from other machines on your local network, set the `FLASK_RUN_HOST` environment variable to `0.0.0.0` before running `fzx2 start_server .`, or run the underlying Flask app directly:
+
+  ```bash
+  python3 -m flask --app server/app.py run --host 0.0.0.0
+  ```
+</Tip>

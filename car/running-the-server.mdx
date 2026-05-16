@@ -1,0 +1,98 @@
+---
+title: 'Start and use the FZX2 CAR distribution server'
+description: 'Start the FZX2 CAR server via CLI or Python, upload .507ex executables, and share pull URLs with secret codes for authenticated remote execution.'
+---
+
+The CAR server is a Flask application that accepts `.507ex` uploads and serves them to authenticated callers. You can start it in two ways: through the `fzx2` CLI or by running the Python script directly. Both methods launch the same Flask application and behave identically at runtime.
+
+## Starting the server
+
+<CodeGroup>
+
+```bash fzx2 CLI
+fzx2 start_server <any_path>
+```
+
+```bash Python directly
+python3 server/app.py
+```
+
+</CodeGroup>
+
+<Note>
+When using `fzx2 start_server`, the path argument is required by the CLI argument parser but is not used for this mode. You can pass any value — for example, `fzx2 start_server .`.
+</Note>
+
+On startup, the server creates a `storage/` directory in the **current working directory** if one does not already exist. All uploaded executables and their associated metadata are written into this directory. Make sure you start the server from a directory where you have write permission.
+
+The server binds to Flask's default address:
+
+```text
+http://127.0.0.1:5000
+```
+
+<Warning>
+Flask's built-in development server is not suitable for production use. It is single-threaded, lacks security hardening, and is not designed to handle concurrent load. For any deployment beyond local testing, place the application behind a production WSGI server such as Gunicorn and a reverse proxy such as Nginx.
+</Warning>
+
+## Full upload and execute workflow
+
+Once the server is running, use the following workflow to upload a file and share it with others.
+
+<Steps>
+  <Step title="Upload your executable">
+    Run the upload command and provide the server address when prompted.
+
+    ```bash
+    fzx2 upload my_app.507ex
+    ```
+
+    ```text
+    Please enter the server address:
+    http://127.0.0.1:5000
+    Upload Complete!
+    Upload URL: http://127.0.0.1:5000/pull/a1b2c3d4
+    Your Secret Code Is: 482910
+    ```
+
+    The CLI reads the `507ex-id` embedded in the file header and uses it as the file identifier for the upload.
+  </Step>
+  <Step title="Save the URL and secret code">
+    Copy the pull URL and secret code from the output. The secret code is displayed exactly once and cannot be retrieved from the server after this point.
+  </Step>
+  <Step title="Share the URL and secret code">
+    Send both the pull URL and the secret code to anyone who needs to run the application. They do not need the original `.507ex` file.
+  </Step>
+  <Step title="Recipients execute the file by URL">
+    The recipient runs `fzx2 exec` with the pull URL instead of a local file path:
+
+    ```bash
+    fzx2 exec http://127.0.0.1:5000/pull/a1b2c3d4
+    ```
+
+    The CLI prompts for the secret code:
+
+    ```text
+    Please enter the secret code:
+    482910
+    ```
+
+    The CLI hashes the input, sends it to the server, downloads the file on success, executes it, and removes the temporary copy when done.
+  </Step>
+</Steps>
+
+<Tip>
+If the recipient enters the wrong secret code, the server returns a `401` response and the CLI prints "Your Secret Code is invalid!". The correct code must be re-entered by running `fzx2 exec` again with the same URL.
+</Tip>
+
+## Storage layout
+
+After one or more uploads, the `storage/` directory will contain two files per uploaded executable:
+
+```text
+storage/
+├── <file_id>.507ex      # the uploaded binary
+└── <file_id>.json       # SHA-256 hash of the secret code
+```
+
+The `.json` file holds the hashed secret code used to authenticate pull requests. Neither the raw code nor the file binary is ever returned by the server outside of an authenticated `/pull` request.

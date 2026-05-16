@@ -1,0 +1,134 @@
+---
+title: "dependfile: Declaring Runtime Dependencies"
+description: "The optional dependfile lets FZX2 automatically install packages before running a .507ex executable, with per-platform control and interactive confirmation."
+---
+
+A `dependfile` is an optional plain-text file placed in the root of your source directory alongside `runfile`. It declares the packages FZX2 should install before executing your application. When you build with a `dependfile` present, its contents are embedded verbatim into the `.507ex` metadata header and `507ex-depends` is set to `True`. At execution time, FZX2 reads that block, prompts the user to confirm, and runs the appropriate install command for each dependency. If no `dependfile` exists, `507ex-depends` is set to `False` and no installation step occurs.
+
+## File format
+
+```text
+!<NAME>|<install_command_prefix>
+!PLATFORM <platform_string>
+<dependency1>
+<dependency2>
+```
+
+The file has three parts:
+
+1. **Command line** — a line starting with `!` (other than `!PLATFORM`) that defines the install tool and its base invocation. The format is `!NAME|command_prefix`.
+2. **Platform line** — `!PLATFORM <value>` restricts installation to a specific platform or `*` for all platforms. The value is compared against Python's `sys.platform` at runtime.
+3. **Dependency lines** — one dependency per line. For each line, FZX2 runs `<command_prefix> <dependency>`.
+
+## The command line
+
+The `!NAME|command` syntax separates a human-readable label from the actual shell prefix used for installation.
+
+```text
+!PIP|python3 -m pip install
+```
+
+At runtime, FZX2 splits on `|` and takes the right-hand side as the command prefix. Each dependency line is appended to produce the full shell command. For the example above and a dependency of `together`, FZX2 runs:
+
+```bash
+python3 -m pip install together
+```
+
+## The PLATFORM line
+
+`!PLATFORM` controls which operating system the following dependencies apply to. The value is matched against Python's `sys.platform`.
+
+| Value | Effect |
+|---|---|
+| `*` | Install on all platforms |
+| `linux` | Install only on Linux |
+| `darwin` | Install only on macOS |
+| `win32` | Install only on Windows |
+
+<Note>
+FZX2 checks `dependency_platform == sys.platform or dependency_platform == '*'` before running any install command, so unmatched platforms are silently skipped.
+</Note>
+
+## Full example
+
+The following is the canonical example from the FZX2 source:
+
+```text
+!PIP|python3 -m pip install
+!PLATFORM *
+together
+```
+
+This tells FZX2 to install the `together` package using `python3 -m pip install together` on any platform.
+
+The corresponding `main.py` that uses this dependency:
+
+```python
+import together
+print("hi")
+```
+
+## Effect on .507ex metadata
+
+When `dependfile` is present at build time, the build function reads its contents and embeds them in the executable header:
+
+```text
+507ex-depends|True
+!507EX-DEPENDENCIES
+!PIP|python3 -m pip install
+!PLATFORM *
+together
+!507EX-END-META
+```
+
+When `dependfile` is absent:
+
+```text
+507ex-depends|False
+!507EX-DEPENDENCIES
+None
+!507EX-END-META
+```
+
+The `507ex-depends|False` value causes FZX2 to skip the dependency parsing step entirely at runtime.
+
+## Runtime installation flow
+
+<Steps>
+  <Step title="Check the metadata flag">
+    FZX2 reads `507ex-depends` from the header. If it is `False`, the dependency step is skipped and execution proceeds immediately.
+  </Step>
+  <Step title="Prompt for confirmation">
+    If dependencies are present, FZX2 asks the user interactively whether to install them (y/n) before running any commands.
+  </Step>
+  <Step title="Parse the dependency block">
+    FZX2 reads the `!507EX-DEPENDENCIES` section line by line, extracting the command prefix from the `!NAME|command` line and the target platform from `!PLATFORM`.
+  </Step>
+  <Step title="Install each dependency">
+    For each dependency line, if the current `sys.platform` matches the declared platform (or the platform is `*`), FZX2 runs:
+
+    ```python
+    subprocess.run(f"{command} {arg}", shell=True, check=False)
+    ```
+  </Step>
+  <Step title="Execute the runfile command">
+    Once all applicable dependencies are installed, FZX2 runs the command from `runfile` in the extracted runtime directory.
+  </Step>
+</Steps>
+
+## Project structure with a dependfile
+
+```text
+my_project/
+├── main.py
+├── runfile
+└── dependfile
+```
+
+<Tip>
+You can declare multiple `!PLATFORM` blocks in a single `dependfile` to install different packages on different operating systems — just add another `!PLATFORM` line followed by the platform-specific dependencies.
+</Tip>
+
+<Warning>
+`subprocess.run` is called with `check=False`, so a failed install command does not abort execution. If a dependency fails to install, your application may encounter an `ImportError` or similar error when it runs.
+</Warning>

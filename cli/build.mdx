@@ -1,0 +1,120 @@
+---
+title: 'fzx2 build — Package a directory as a .507ex file'
+description: 'Compile a project directory into a signed, self-contained .507ex executable with embedded BLAKE2s hash, metadata header, and optional dependency instructions.'
+---
+
+The `build` command zips a project directory, prepends a structured FZX2 metadata header, computes a BLAKE2s hash over the ZIP payload, and writes the result as a `.507ex` file ready to distribute or upload to a CAR server. The header stores the hash, hash algorithm, a UUID, the creation timestamp, and a flag indicating whether a `dependfile` is present.
+
+## Usage
+
+```bash
+fzx2 build <directory>
+```
+
+<ParamField path="directory" type="string" required>
+  Path to the project directory to package. The directory must contain a `runfile`.
+  The output file is written to `<directory>.507ex` in the parent directory.
+</ParamField>
+
+## Required files
+
+<ParamField path="runfile" type="file" required>
+  A plain-text file at the root of the project directory. Its contents are executed as a shell command when the `.507ex` file is run with `fzx2 exec`. If this file is absent, the build fails immediately with `No Runfile Detected!`.
+</ParamField>
+
+<ParamField path="dependfile" type="file">
+  Optional plain-text file listing dependency install instructions. When present, its contents are embedded in the metadata header and the `507ex-depends` flag is set to `True`. Users are prompted to confirm dependency installation at exec time.
+</ParamField>
+
+## How it works
+
+<Steps>
+  <Step title="Validate the directory">
+    `fzx2` checks that a `runfile` exists inside the target directory. If it does not, the build aborts with `No Runfile Detected!`.
+  </Step>
+  <Step title="Read the dependfile (if present)">
+    If a `dependfile` exists, its raw text is read and later embedded in the metadata block.
+  </Step>
+  <Step title="Create the ZIP archive">
+    The entire directory is zipped using Python's `shutil.make_archive`. The resulting `.zip` is immediately renamed to `<directory>.507ex`.
+  </Step>
+  <Step title="Compute the BLAKE2s hash">
+    The ZIP payload is hashed using BLAKE2s (read in 8 192-byte chunks). This digest is stored in the header so `fzx2 exec` can verify integrity before execution.
+  </Step>
+  <Step title="Write the metadata header">
+    The file is rewritten: the original ZIP payload is preserved, and a structured plaintext header is prepended containing the magic bytes, hash, hash algorithm, a fresh UUID, creation timestamp, and dependency flag.
+  </Step>
+</Steps>
+
+## Metadata header format
+
+The header written to every `.507ex` file looks like the following:
+
+```text
+FZX2
+!507EX-METADATA
+507ex-hash|<blake2s-hex-digest>
+507ex-hashmode|blake2s
+507ex-id|<uuid4>
+507ex-dtoc|<datetime>
+507ex-depends|<True|False>
+!507EX-DEPENDENCIES
+<dependfile contents or None>
+!507EX-END-META
+<zip payload bytes>
+```
+
+## Example
+
+### Project layout
+
+```text
+my_app/
+├── runfile
+├── dependfile
+└── main.py
+```
+
+### runfile
+
+```text
+python3 main.py
+```
+
+### dependfile
+
+```text
+!PIP|python3 -m pip install
+!PLATFORM *
+requests
+flask
+```
+
+### Build command
+
+```bash
+fzx2 build my_app
+```
+
+### Success output
+
+```text
+Successfully built my_app.507ex
+```
+
+The file `my_app.507ex` is created in the current working directory (the parent of `my_app/`).
+
+## Errors
+
+| Message | Cause |
+|---|---|
+| `No Runfile Detected!` | The target directory contains no `runfile`. |
+| `An error occured while building the Executable: <detail>` | Any other exception during the build (permissions, disk space, etc.). |
+
+<Warning>
+  If a file named `<directory>.zip` already exists in the same location, it will be overwritten during the build process before being renamed to `.507ex`.
+</Warning>
+
+<Tip>
+  Keep `runfile` as simple as possible — a single shell command or script invocation. Complex logic belongs in the scripts your runfile calls, not in the runfile itself.
+</Tip>

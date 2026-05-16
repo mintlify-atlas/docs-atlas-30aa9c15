@@ -1,0 +1,121 @@
+---
+title: 'fzx2 exec — Execute a .507ex file or CAR server URL'
+description: 'Execute a local .507ex file or fetch one from a CAR server, with automatic BLAKE2s hash verification, optional dependency installation, and post-run cleanup.'
+---
+
+The `exec` command is the primary way to run a `.507ex` package. It parses the FZX2 metadata header, optionally installs dependencies, verifies the BLAKE2s hash of the embedded ZIP payload, extracts the archive into an isolated runtime directory, executes the `runfile` command, and removes all temporary files when finished. The path argument accepts either a local file path or an `http://`/`https://` URL pointing to a CAR server endpoint.
+
+## Usage
+
+<CodeGroup>
+
+```bash Local file
+fzx2 exec <path>
+```
+
+```bash CAR server URL
+fzx2 exec <url>
+```
+
+</CodeGroup>
+
+<ParamField path="path" type="string" required>
+  Path to a local `.507ex` file, or an `http://` / `https://` URL to a CAR server. When a URL is provided, `fzx2` prompts for a secret code, downloads the executable, then proceeds with the standard execution flow.
+</ParamField>
+
+## How it works
+
+<Steps>
+  <Step title="Download from CAR server (URL only)">
+    When the path starts with `http://` or `https://`, `fzx2` prompts for a secret code, hashes it with SHA-256, and POSTs it to the provided URL. A `401` response means the code was invalid. The downloaded content is saved as `tmp.507ex` in the current directory.
+  </Step>
+  <Step title="Parse the metadata header">
+    The file is opened and read line by line. The magic bytes `FZX2` must appear on the first line; if not, execution aborts with `Invalid Executable!`. The parser extracts `507ex-hash`, `507ex-hashmode`, `507ex-id`, and the `507ex-depends` flag.
+  </Step>
+  <Step title="Install dependencies (if present)">
+    If `507ex-depends` is `True`, you are prompted:
+
+    ```text
+    Executable has dependencies that it wants to install. Continue? (y/n)
+    ```
+
+    Answering `n` aborts execution. Answering `y` causes `fzx2` to iterate over the dependency block, running each listed command using the system shell for the matching platform (`*` matches all platforms).
+  </Step>
+  <Step title="Verify the BLAKE2s hash">
+    After the header, `fzx2` reads the raw ZIP payload bytes and computes their BLAKE2s digest. If it does not match the `507ex-hash` value embedded in the header, execution stops with `Hash Verification Failed. Executable may have been damaged.`
+  </Step>
+  <Step title="Extract to an isolated runtime directory">
+    A directory `.fzx2-runtime/<exec_id>/` is created in the current working directory. The ZIP payload is extracted there.
+  </Step>
+  <Step title="Run the runfile">
+    The `runfile` found in the extracted directory is read and passed to the system shell. All output is forwarded to your terminal.
+  </Step>
+  <Step title="Clean up">
+    After execution (or on error), `fzx2` removes `.fzx2-runtime/<exec_id>/`. If the executable was fetched from a CAR server, `tmp.507ex` is also deleted.
+  </Step>
+</Steps>
+
+## Interactive prompts
+
+| Prompt | When shown | Expected input |
+|---|---|---|
+| `Please enter the secret code:` | Path is a CAR server URL | The secret code printed by `fzx2 upload` |
+| `Executable has dependencies that it wants to install. Continue? (y/n)` | `507ex-depends` is `True` | `y` to install, `n` to abort |
+
+## Examples
+
+<CodeGroup>
+
+```bash Execute a local file
+fzx2 exec my_app.507ex
+```
+
+```bash Execute from a CAR server
+fzx2 exec http://192.168.1.50:5000/pull/a1b2c3d4-...
+```
+
+</CodeGroup>
+
+### CAR server session
+
+```text
+$ fzx2 exec http://192.168.1.50:5000/pull/a1b2c3d4-e5f6-7890-abcd-ef1234567890
+Please enter the secret code:
+hunter2
+Executable has dependencies that it wants to install. Continue? (y/n)
+y
+[dependency install output]
+Hello from my_app!
+```
+
+## Runtime directory layout
+
+While a `.507ex` file is executing, the following temporary structure exists on disk:
+
+```text
+.fzx2-runtime/
+└── <exec_id>/
+    ├── runfile
+    ├── main.py
+    └── (other bundled files)
+```
+
+This directory is removed automatically when execution ends.
+
+## Errors
+
+| Message | Cause |
+|---|---|
+| `Invalid Executable!` | The file does not begin with the `FZX2` magic bytes. |
+| `Your Secret Code is invalid!` | The CAR server returned HTTP 401. |
+| `Hash Verification Failed. Executable may have been damaged.` | The BLAKE2s digest of the ZIP payload does not match the header. |
+| `Aborted!` | The user answered `n` to the dependency install prompt. |
+| `Exiting 507ex enviornment...` | The runfile raised an exception or `Ctrl+C` was pressed. |
+
+<Warning>
+  Dependency installation runs shell commands embedded inside the `.507ex` file. Only execute packages from sources you trust.
+</Warning>
+
+<Note>
+  Pressing `Ctrl+C` during execution triggers a clean shutdown: the runtime directory is removed and `tmp.507ex` is deleted if it was downloaded from a CAR server.
+</Note>

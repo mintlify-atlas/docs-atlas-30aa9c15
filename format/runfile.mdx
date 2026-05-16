@@ -1,0 +1,92 @@
+---
+title: "runfile: Defining the Entry Command"
+description: "The runfile is a required plain-text file that tells FZX2 which shell command to execute after extracting a .507ex executable at runtime."
+---
+
+Every `.507ex` project must contain a file named exactly `runfile` — no extension — in the root of the source directory. It holds a single shell command that FZX2 runs after it extracts the archive into a temporary runtime directory. Without this file, `fzx2 build` refuses to proceed and raises a `FileNotFoundError`. The command is passed directly to `subprocess.run` with `shell=True`, so the full shell feature set — pipes, redirects, environment variables, and shell builtins — is available.
+
+## Requirements
+
+- The file must be named `runfile` with no file extension.
+- It must be located in the root of the source directory (the directory you pass to `fzx2 build`).
+- It must contain a single shell command on one line.
+- It is required. Building without it raises `FileNotFoundError: No Runfile Detected!`
+
+## Format
+
+The file contains one shell command. No shebang, no comments, no blank lines are needed — just the command.
+
+```text
+python3 main.py
+```
+
+At runtime the command is read and executed as-is, with the working directory set to `.fzx2-runtime/<exec_id>/`, where `<exec_id>` is the UUID stored in the `507ex-id` metadata field.
+
+## Examples
+
+<CodeGroup>
+
+```text Python project
+python3 main.py
+```
+
+```text Bash script
+bash run.sh
+```
+
+```text Node.js project
+node index.js
+```
+
+```text Shell pipeline
+python3 preprocess.py | python3 main.py
+```
+
+</CodeGroup>
+
+<Note>
+Because `shell=True` is set, shell pipelines, redirects (`>`), and environment variable expansion (`$VAR`) all work exactly as they would in a terminal.
+</Note>
+
+## What happens at execution time
+
+<Steps>
+  <Step title="Extract the ZIP payload">
+    FZX2 extracts the archive into `.fzx2-runtime/<exec_id>/`. All files from your source directory — including `runfile` itself — are available there.
+  </Step>
+  <Step title="Read the runfile">
+    FZX2 reads the contents of `runfile` from the extracted directory.
+  </Step>
+  <Step title="Run the command">
+    The command is executed via:
+
+    ```python
+    subprocess.run(runfile_contents, shell=True, check=False)
+    ```
+
+    The working directory is `.fzx2-runtime/<exec_id>/`, so relative file references in your command resolve correctly.
+  </Step>
+</Steps>
+
+## Project structure example
+
+The following project structure produces a valid `.507ex` file when built:
+
+```text
+my_project/
+├── main.py
+├── runfile
+└── dependfile   ← optional
+```
+
+With `runfile` containing:
+
+```text
+python3 main.py
+```
+
+Running `fzx2 build my_project` packages everything into `my_project.507ex`. When executed, FZX2 extracts the archive and runs `python3 main.py` from the runtime directory.
+
+<Warning>
+`check=False` is passed to `subprocess.run`, which means FZX2 does not raise an exception if your command exits with a non-zero status code. Your script is responsible for its own error handling.
+</Warning>

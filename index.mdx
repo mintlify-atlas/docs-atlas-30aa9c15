@@ -1,133 +1,43 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
-icon: 'star'
+title: "FZX2: Portable Python Executables Made Simple"
+description: "FZX2 packages directories into portable .507ex executables with metadata, hash verification, auto dependency install, and CAR server distribution."
 ---
 
-## Setting up
+FZX2 (507ex 2.0) is a command-line tool that packages directories into portable `.507ex` executables — self-contained bundles with embedded metadata, hash verification, and automatic dependency installation. You can run them locally or pull them directly from a Central Application Repository (CAR) server with a single command.
 
-Get your documentation site up and running in minutes.
-
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install FZX2 via pip or from source in under a minute
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Build and run your first 507ex executable step by step
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="CLI Reference" icon="terminal" href="/cli/build">
+    Every command documented with flags and real examples
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="CAR Server" icon="server" href="/car/overview">
+    Host and distribute executables remotely with authentication
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## What is FZX2?
 
-Everything you need to create world-class documentation.
+FZX2 packages a directory of scripts and assets into a single `.507ex` file. The format stores a BLAKE2s hash for integrity verification, a UUID for tracking, a creation timestamp, and an optional dependency list — all in a human-readable metadata header prepended to a ZIP archive of your source files.
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+<CardGroup cols={2}>
+  <Card title="Executable Format" icon="file-code" href="/format/overview">
+    Understand the 507ex file structure and metadata fields
   </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
+  <Card title="Dependency Files" icon="list-check" href="/format/dependfile">
+    Automatically install dependencies when an executable runs
   </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+</CardGroup>
 
-## Make your content agent ready
+## Key features
 
-Make your docs work for humans and AI agents alike.
-
-<Columns cols={2}>
-  <Card
-    title="Prompt component"
-    icon="robot"
-    href="/agent-ready/prompt"
-  >
-    Embed shareable AI prompts readers can copy or open in Cursor.
-  </Card>
-  <Card
-    title="Visibility"
-    icon="eye"
-    href="/agent-ready/visibility"
-  >
-    Show different content to humans and agents reading your docs.
-  </Card>
-  <Card
-    title="Contextual menu"
-    icon="bolt"
-    href="/agent-ready/contextual"
-  >
-    Give readers one-click access to Claude, ChatGPT, Cursor, and more.
-  </Card>
-  <Card
-    title="AI coding tools"
-    icon="wand-magic-sparkles"
-    href="/ai-tools/claude-code"
-  >
-    Set up Claude Code, Cursor, or Windsurf with Mintlify's skill.
-  </Card>
-</Columns>
-
-## Need inspiration?
-
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+- **Portable bundles** — pack any directory into a single `.507ex` file
+- **Integrity verification** — BLAKE2s hash checked at execution time
+- **Auto dependency management** — dependencies embedded and installed on first run
+- **Remote execution** — pull and run executables directly from a CAR server URL
+- **Secret-code auth** — CAR server protects downloads with hashed secret codes
+- **pip installable** — `pip install fzx2` gives you the `fzx2` command globally
